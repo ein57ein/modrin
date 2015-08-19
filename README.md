@@ -1,2 +1,1 @@
-# modrin
-MOtor DRiver INterface
+# epos2_control
