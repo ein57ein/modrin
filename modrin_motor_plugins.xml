@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<library path="lib/lib_epos2">
+  <class type="modrin_motor_plugins::Epos2" base_class_type="modrin::Motor">
+    <description>
+      This Plugin will controll an epos2 motor driver.
+    </description>
+  </class>
+</library>
