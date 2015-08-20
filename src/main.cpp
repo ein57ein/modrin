@@ -8,7 +8,7 @@ int main(int argc, char **argv) {
 
    ROS_INFO("hello. modrin here.");
 
-   modrin::ModrinCore modrin_core_object;
+   modrin::ModrinCore modrin_core_object(roshandle);
 
    ros::spin();
 

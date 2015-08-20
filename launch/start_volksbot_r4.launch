@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+
+<launch>
+
+   <group ns="volksbot_r4" >
+
+      <node name="tank_steering" pkg="modrin" type="modrin" output="screen">
+         <rosparam file="$(find modrin)/config/epos2_tank_volksbot_r4.yaml" command="load" />
+      </node>
+
+   </group>
+
+</launch>

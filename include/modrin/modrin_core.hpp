@@ -11,22 +11,10 @@ namespace modrin
    class ModrinCore
 	{
       pluginlib::ClassLoader<modrin::Motor> motor_loader;
-      boost::shared_ptr<modrin::Motor> motor_node;
+      boost::shared_ptr<modrin::Motor> motor_node1, motor_node2;
 
    public:
-      ModrinCore():motor_loader("modrin", "modrin::Motor") {
-
-         ROS_INFO("hello. modrin_core here.");
-
-         try
-      	{
-      		motor_node.reset();
-      		motor_node = motor_loader.createInstance("modrin_motor_plugins::Epos2");
-            ROS_INFO("motor loaded");
-      	} catch(pluginlib::PluginlibException& ex) {
-      		ROS_FATAL("failed to load motor. Error: \"%s\"\nGoodbye.", ex.what());
-      	}
-      }
+      ModrinCore(ros::NodeHandle roshandle);
 
       virtual ~ModrinCore() {}
    };

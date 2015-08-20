@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(modrin)
 
+set(CMAKE_BUILD_TYPE Debug) #-g
+#set(CMAKE_BUILD_TYPE RelWithDebInfo) #-O2 -g
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -11,6 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
+#set the Enviroment for epos2 lib
+#set(LD_LIBRARY_PATH /opt/lib:${PROJECT_SOURCE_DIR}:$LD_LIBRARY_PATH)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -101,6 +106,7 @@ include_directories(
 #   src/${PROJECT_NAME}/modrin.cpp
 # )
 add_library(_motor src/motor.cpp)
+add_library(_modrin_core src/modrin_core.cpp)
 
 add_library(_epos2 src/modrin_motor_plugins/epos2.cpp)
 
@@ -119,10 +125,11 @@ add_executable(modrin_safety_node src/modrin_safety_node/main.cpp)
 #   ${catkin_LIBRARIES}
 # )
 target_link_libraries(_motor ${catkin_LIBRARIES})
+target_link_libraries(_modrin_core ${catkin_LIBRARIES} _motor)
 
-target_link_libraries(_epos2 ${catkin_LIBRARIES} _motor)
+target_link_libraries(_epos2 ${catkin_LIBRARIES} _motor ${PROJECT_SOURCE_DIR}/lib/libEposCmd.so ${PROJECT_SOURCE_DIR}/lib/libftd2xx.so)
 
-target_link_libraries(modrin ${catkin_LIBRARIES} _motor)
+target_link_libraries(modrin ${catkin_LIBRARIES} _motor _modrin_core)
 target_link_libraries(modrin_sample_moving ${catkin_LIBRARIES})
 target_link_libraries(modrin_safety_node ${catkin_LIBRARIES})
 
