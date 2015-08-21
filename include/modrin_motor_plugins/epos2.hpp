@@ -3,6 +3,7 @@
 
 #include <modrin/motor.hpp>
 #include <modrin_motor_plugins/epos2_definitions.h>
+#include <modrin/epos2_can.h>
 
 namespace modrin_motor_plugins
 {
@@ -10,7 +11,10 @@ namespace modrin_motor_plugins
    class Epos2 : public modrin::Motor
 	{
       std::string name;
+      int epos_node_nr;
       void* devhandle;
+      ros::ServiceServer epos2_can_srv;
+      ros::ServiceClient epos2_can;
 
    public:
       Epos2():devhandle(0) {
@@ -32,6 +36,7 @@ namespace modrin_motor_plugins
 
    private:
       bool establishCommmunication();
+      bool canSrv(modrin::epos2_can::Request &req, modrin::epos2_can::Response &res);
       void printEpos2Error(unsigned int errorCode);
    };
 };

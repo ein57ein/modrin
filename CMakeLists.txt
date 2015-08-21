@@ -8,11 +8,12 @@ set(CMAKE_BUILD_TYPE Debug) #-g
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  roscpp pluginlib
+  roscpp pluginlib message_generation
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS thread)
 
 #set the Enviroment for epos2 lib
 #set(LD_LIBRARY_PATH /opt/lib:${PROJECT_SOURCE_DIR}:$LD_LIBRARY_PATH)
@@ -54,11 +55,12 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
+ add_service_files(
+   FILES
+	epos2_can.srv
 #   Service1.srv
 #   Service2.srv
-# )
+ )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -68,10 +70,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
+ generate_messages(
 #   DEPENDENCIES
 #   std_msgs  # Or other packages containing msgs
-# )
+ )
 
 ###################################
 ## catkin specific configuration ##
@@ -99,6 +101,7 @@ catkin_package(
 include_directories(
 	include
 	${catkin_INCLUDE_DIRS}
+	${Boost_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
@@ -119,13 +122,14 @@ add_executable(modrin_safety_node src/modrin_safety_node/main.cpp)
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(modrin_node modrin_generate_messages_cpp)
+add_dependencies(_epos2 modrin_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(modrin_node
 #   ${catkin_LIBRARIES}
 # )
 target_link_libraries(_motor ${catkin_LIBRARIES})
-target_link_libraries(_modrin_core ${catkin_LIBRARIES} _motor)
+target_link_libraries(_modrin_core ${catkin_LIBRARIES} ${Boost_LIBRARIES} _motor)
 
 target_link_libraries(_epos2 ${catkin_LIBRARIES} _motor ${PROJECT_SOURCE_DIR}/lib/libEposCmd.so ${PROJECT_SOURCE_DIR}/lib/libftd2xx.so)
 

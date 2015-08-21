@@ -14,7 +14,7 @@ left_epos2:
    reverse: false
    port: 'USB0'
    baudrate: 1000000
-   timeout: 750
+   timeout: 850
 
 right_epos2:
    #must be set for every motor
