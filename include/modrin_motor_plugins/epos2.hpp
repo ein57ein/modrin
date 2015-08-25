@@ -11,7 +11,7 @@ namespace modrin_motor_plugins
    class Epos2 : public modrin::Motor
 	{
       std::string name;
-      int epos_node_nr;
+      std::vector<int> epos_node_nr;
       void* devhandle;
       ros::ServiceServer epos2_can_srv;
       ros::ServiceClient epos2_can;
@@ -32,12 +32,15 @@ namespace modrin_motor_plugins
       double getMaxRPM() { return 0.0; }
       double getAbsolutePosition() { return 0.0; }
 
-      virtual ~Epos2(){}	/**< Intentionally left empty **/
+      virtual ~Epos2(){/*set disable OR terminate connection*/}	/**< Intentionally left empty **/
 
    private:
       bool establishCommmunication();
       bool canSrv(modrin::epos2_can::Request &req, modrin::epos2_can::Response &res);
+      void resetAndClearFaultOnAllDevices();
       void printEpos2Error(unsigned int errorCode);
+
+
    };
 };
 #endif //MODRIN_EPOS2_PLUGIN_H_

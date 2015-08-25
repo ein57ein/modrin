@@ -17,8 +17,8 @@ namespace modrin
       ros::NodeHandle roshandle;
 
        pthread_t left_t, right_t;
-       //ros::AsyncSpinner *spinner;
-       //ros::MultiThreadedSpinner *spinner;
+       ros::AsyncSpinner spinner;
+       //ros::MultiThreadedSpinner spinner;
 
    public:
       ModrinCore(ros::NodeHandle roshandle);

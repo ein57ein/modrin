@@ -2,17 +2,23 @@
 
 namespace modrin
 {
-   ModrinCore::ModrinCore(ros::NodeHandle roshandle):motor_loader("modrin", "modrin::Motor"),roshandle(roshandle) {
+   ModrinCore::ModrinCore(ros::NodeHandle roshandle):motor_loader("modrin", "modrin::Motor"),roshandle(roshandle),spinner(4) {
 
       ROS_INFO("hello. modrin_core here.");
-
-      //*spinner = ros::AsyncSpinner(4);
-      //*spinner = ros::MultiThreadedSpinner(4);
 
       pthread_create(&left_t, NULL, &ModrinCore::start, this);
       pthread_create(&right_t, NULL, &ModrinCore::start, this);
 
       ROS_INFO("hello. modrin_core constructed.");
+
+      //spinner.spin();
+      spinner.start();
+      std::cout<<"modrin_core start spinning.\n";
+      pthread_join(left_t, NULL);
+      pthread_join(right_t, NULL);
+      std::cout<<"modrin_core threads joint.\n";
+      ros::waitForShutdown();
+      std::cout<<"stop spinning\n";
    }
 
    void* ModrinCore::start(void *arg)
@@ -51,9 +57,7 @@ namespace modrin
          ROS_FATAL("failed to load motor. Error: \"%s\"\nGoodbye.", ex.what());
       }
 
-      //spinner->spin();
-      //spinner->start();
-      //ros::waitForShutdown();
+
    }
 
 }

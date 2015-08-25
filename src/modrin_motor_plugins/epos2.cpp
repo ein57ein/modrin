@@ -12,14 +12,14 @@ namespace modrin_motor_plugins
 
       if ( ros::param::has(name + "/node_nr") )
       {
-         ros::param::get(name + "/node_nr", epos_node_nr);
+         int temp;
+         ros::param::get(name + "/node_nr", temp);
+         epos_node_nr.push_back(temp);
       } else {
+         ROS_ERROR("couldn't read an Epos2 node_nr from the parameter-server at \"%s\"", (name + "/node_nr").c_str() );
          return false;
       }
 
-      ROS_INFO("epos_nr: %i in ns: %s", epos_node_nr, name.c_str() );
-
-      //add a while-loop with initTimeout and rosspinonce
       if ( ros::param::has(name + "/can_connected_with") )
       {
          std::string can_connected_with, srv_name = name;
@@ -28,40 +28,35 @@ namespace modrin_motor_plugins
          srv_name = srv_name.substr(0, x+1) + can_connected_with;
          epos2_can = roshandle.serviceClient<modrin::epos2_can>( srv_name );
 
-         ros::spinOnce();
-
-         d.sleep();
-
          modrin::epos2_can temp;
-         temp.request.node_nr = epos_node_nr;
-         ROS_INFO("call srv: %s", srv_name.c_str() );
+         temp.request.node_nr = epos_node_nr[0];
+         ros::service::waitForService(srv_name, 5000);   //initTimeout
+         ROS_DEBUG("call srv: %s", srv_name.c_str() );
          if (epos2_can.call(temp))
          {
             devhandle = (void*) temp.response.devhandle;
-            ROS_ERROR("true");
+            ROS_INFO("receive epos2 devhandle %#lx", (unsigned long int) devhandle);
          } else {
             devhandle = 0;
-            ROS_ERROR("false");
          }
       } else {
          establishCommmunication();
 
          epos2_can_srv = roshandle.advertiseService(name.c_str(), &Epos2::canSrv, this);
-         ROS_INFO("create srv: %s", name.c_str());
-
-         ros::spinOnce();
-         //ros::Duration d = 1;
-         d.sleep();
+         ROS_DEBUG("create srv: %s", name.c_str());
       }
 
       if (devhandle == 0)
       {
+         ROS_ERROR("couldn't receive an epos2 devhandle");
          return false;
       } else {
          //set parameter
 
+         ROS_INFO("Epos2 with node_nr %i successfully started in ns \"%s\"", epos_node_nr[0], name.c_str() );
          return true;
       }
+
    }
 
    bool Epos2::establishCommmunication()
@@ -86,7 +81,6 @@ namespace modrin_motor_plugins
          return false;
       }
 
-
       unsigned int errorCode=0;
       devhandle = VCS_OpenDevice((char*)"EPOS2", protocol, port_type, (char*) port.c_str(), &errorCode);
 
@@ -107,7 +101,7 @@ namespace modrin_motor_plugins
 
    bool Epos2::canSrv(modrin::epos2_can::Request &req, modrin::epos2_can::Response &res)
    {
-      ROS_INFO("Epos2 with node_nr %i call the canSrv of the Epos2 with node_nr %i", req.node_nr, epos_node_nr);
+      ROS_INFO("Epos2 with node_nr %i call the canSrv of the Epos2 with node_nr %i", req.node_nr, epos_node_nr[0]);
 
       res.devhandle = (unsigned long int) devhandle;
 
@@ -115,9 +109,31 @@ namespace modrin_motor_plugins
       {
          return false;
       } else {
-         int i = req.node_nr;
-
+         epos_node_nr.push_back(req.node_nr);
+         resetAndClearFaultOnAllDevices();
          return true;
+      }
+   }
+
+   void Epos2::resetAndClearFaultOnAllDevices()
+   {
+      std::vector<int>::iterator it;
+      unsigned int errorCode=0;
+
+      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
+         if ( !VCS_SetDisableState(devhandle, *it, &errorCode) ) printEpos2Error(errorCode);
+      }
+
+      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
+         if ( !VCS_ResetDevice(devhandle, *it, &errorCode) ) printEpos2Error(errorCode);
+      }
+
+      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
+         if ( !VCS_ClearFault(devhandle, *it, &errorCode) ) printEpos2Error(errorCode);
+      }
+
+      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
+         if ( !VCS_SetEnableState(devhandle, *it, &errorCode) ) printEpos2Error(errorCode);
       }
    }
 
@@ -133,4 +149,5 @@ namespace modrin_motor_plugins
          ROS_FATAL("Unable to resolve an errorText for the Epos2-ErrorCode %#x", errorCode);
       }
    }
+
 }

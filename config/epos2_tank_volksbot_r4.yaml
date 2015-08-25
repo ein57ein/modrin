@@ -13,7 +13,9 @@ left_epos2:
    node_nr: 2
    reverse: false
    port: 'USB0'
+   #[Bits/s]
    baudrate: 1000000
+   #[ms]
    timeout: 850
 
 right_epos2:
