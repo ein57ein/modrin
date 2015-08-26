@@ -11,34 +11,38 @@ namespace modrin_motor_plugins
    class Epos2 : public modrin::Motor
 	{
       std::string name;
+
       std::vector<int> epos_node_nr;
       void* devhandle;
       ros::ServiceServer epos2_can_srv;
       ros::ServiceClient epos2_can;
+      bool eposCanClient;
+      unsigned int lastEpos2ErrorCode;
 
    public:
-      Epos2():devhandle(0) {
-         ROS_INFO("created an instance of epos2-plugin for modrin");
-      }	/**< Intentionally left empty **/
+      Epos2();
 
       bool onInit(ros::NodeHandle roshandle, std::string name);
+      void periopdicControllCallback(const ros::TimerEvent& event);
+      bool initEpos2(ros::NodeHandle roshandle, std::string srv_name);
 
-      bool setEnable() {return false;}
-      bool setDisable() {return false;}
-      bool setQuickStop() { return false; }
-      state getState() { return modrin::Motor::fault; }
+      bool setEnable();
+      bool setDisable();
+      bool setQuickStop();
+      state getState();
+      void closeEpos2();
 
-      bool setRPM(double rpm) {return false;}
-      double getMaxRPM() { return 0.0; }
+      bool setRPM(double rpm);
+      double getMaxRPM();
       double getAbsolutePosition() { return 0.0; }
 
-      virtual ~Epos2(){/*set disable OR terminate connection*/}	/**< Intentionally left empty **/
+      virtual ~Epos2();
 
    private:
       bool establishCommmunication();
       bool canSrv(modrin::epos2_can::Request &req, modrin::epos2_can::Response &res);
       void resetAndClearFaultOnAllDevices();
-      void printEpos2Error(unsigned int errorCode);
+      void printEpos2Error();
 
 
    };

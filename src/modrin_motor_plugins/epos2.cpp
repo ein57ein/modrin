@@ -5,6 +5,16 @@ PLUGINLIB_EXPORT_CLASS(modrin_motor_plugins::Epos2, modrin::Motor)
 
 namespace modrin_motor_plugins
 {
+   Epos2::Epos2():devhandle(0), lastEpos2ErrorCode(0)
+   {
+      ROS_DEBUG("created an instance of epos2-plugin for modrin");
+   }
+
+   Epos2::~Epos2()
+   {
+      if ( devhandle != 0 ) closeEpos2();
+   }
+
    bool Epos2::onInit(ros::NodeHandle roshandle, std::string name)
    {
       this->name = name;
@@ -20,31 +30,19 @@ namespace modrin_motor_plugins
          return false;
       }
 
-      if ( ros::param::has(name + "/can_connected_with") )
+      eposCanClient = ros::param::has(name + "/can_connected_with");
+      std::string srv_name = name;
+
+      if ( eposCanClient )
       {
-         std::string can_connected_with, srv_name = name;
+         std::string can_connected_with;
          ros::param::get(name + "/can_connected_with", can_connected_with);
          size_t x = srv_name.find_last_of("/");
          srv_name = srv_name.substr(0, x+1) + can_connected_with;
          epos2_can = roshandle.serviceClient<modrin::epos2_can>( srv_name );
-
-         modrin::epos2_can temp;
-         temp.request.node_nr = epos_node_nr[0];
-         ros::service::waitForService(srv_name, 5000);   //initTimeout
-         ROS_DEBUG("call srv: %s", srv_name.c_str() );
-         if (epos2_can.call(temp))
-         {
-            devhandle = (void*) temp.response.devhandle;
-            ROS_INFO("receive epos2 devhandle %#lx", (unsigned long int) devhandle);
-         } else {
-            devhandle = 0;
-         }
-      } else {
-         establishCommmunication();
-
-         epos2_can_srv = roshandle.advertiseService(name.c_str(), &Epos2::canSrv, this);
-         ROS_DEBUG("create srv: %s", name.c_str());
       }
+
+      initEpos2(roshandle, srv_name);
 
       if (devhandle == 0)
       {
@@ -57,6 +55,32 @@ namespace modrin_motor_plugins
          return true;
       }
 
+   }
+
+   void Epos2::periopdicControllCallback(const ros::TimerEvent& event) {
+      if ( getState() == not_init ) int i=0;//init
+   }
+
+   bool Epos2::initEpos2(ros::NodeHandle roshandle, std::string srv_name)
+   {
+      if (eposCanClient) {
+         modrin::epos2_can temp;
+         temp.request.node_nr = epos_node_nr[0];
+         ros::service::waitForService(srv_name, 5000);   //initTimeout
+         ROS_DEBUG("call srv: %s", srv_name.c_str() );
+         if (epos2_can.call(temp))
+         {
+            devhandle = (void*) temp.response.devhandle;
+            ROS_INFO("receive epos2 devhandle %#lx", (unsigned long int) devhandle);
+         } else {
+            devhandle = 0;
+      }
+      } else {
+         establishCommmunication();
+
+         epos2_can_srv = roshandle.advertiseService(name.c_str(), &Epos2::canSrv, this);
+         ROS_DEBUG("create srv: %s", name.c_str());
+      }
    }
 
    bool Epos2::establishCommmunication()
@@ -82,18 +106,17 @@ namespace modrin_motor_plugins
       }
 
       unsigned int errorCode=0;
-      devhandle = VCS_OpenDevice((char*)"EPOS2", protocol, port_type, (char*) port.c_str(), &errorCode);
+      devhandle = VCS_OpenDevice((char*)"EPOS2", protocol, port_type, (char*) port.c_str(), &lastEpos2ErrorCode);
 
       if (devhandle == 0) {
-         printEpos2Error(errorCode);
+         printEpos2Error();
          return false;
       } else {
-         if ( VCS_SetProtocolStackSettings(devhandle, baudrate, timeout, &errorCode) )
-         {
+         if ( VCS_SetProtocolStackSettings(devhandle, baudrate, timeout, &lastEpos2ErrorCode) ) {
             ROS_INFO("open EPOS2-Device on port %s (baudrate: %i; timeout: %i). devhandle %#lx", port.c_str(), baudrate, timeout, (unsigned long int) devhandle);
             return true;
          } else {
-            printEpos2Error(errorCode);
+            printEpos2Error();
             return false;
          }
       }
@@ -115,38 +138,112 @@ namespace modrin_motor_plugins
       }
    }
 
-   void Epos2::resetAndClearFaultOnAllDevices()
+   bool Epos2::setEnable()
    {
-      std::vector<int>::iterator it;
-      unsigned int errorCode=0;
+      state temp = getState();
+      if ( temp == enabled ) return true;
+      if ( temp != disabled ) return false;
 
-      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
-         if ( !VCS_SetDisableState(devhandle, *it, &errorCode) ) printEpos2Error(errorCode);
-      }
-
-      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
-         if ( !VCS_ResetDevice(devhandle, *it, &errorCode) ) printEpos2Error(errorCode);
-      }
-
-      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
-         if ( !VCS_ClearFault(devhandle, *it, &errorCode) ) printEpos2Error(errorCode);
-      }
-
-      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
-         if ( !VCS_SetEnableState(devhandle, *it, &errorCode) ) printEpos2Error(errorCode);
+      if ( VCS_SetEnableState(devhandle, epos_node_nr[0], &lastEpos2ErrorCode) ) {
+         return true;
+      } else {
+         printEpos2Error();
+         return false;
       }
    }
 
-   void Epos2::printEpos2Error(unsigned int errorCode)
+   bool Epos2::setDisable()
+   {
+      state temp = getState();
+      if ( temp == disabled ) return true;
+      if ( temp == not_init ) return false;
+
+      if ( VCS_SetDisableState(devhandle, epos_node_nr[0], &lastEpos2ErrorCode) ) {
+         return true;
+      } else {
+         printEpos2Error();
+         return false;
+      }
+   }
+
+   bool Epos2::setQuickStop()
+   {
+      if ( VCS_SetQuickStopState(devhandle, epos_node_nr[0], &lastEpos2ErrorCode) ) {
+         return true;
+      } else {
+         printEpos2Error();
+         return false;
+      }
+   }
+
+   modrin::Motor::state Epos2::getState()
+   {
+      unsigned short tempState=0;
+
+      if ( VCS_GetState(devhandle, epos_node_nr[0], &tempState, &lastEpos2ErrorCode) ) {
+         switch (tempState) {
+   			case ST_ENABLED:	return enabled;
+   								break;
+   			case ST_DISABLED:	return disabled;
+   								break;
+   			case ST_QUICKSTOP:   return disabled;
+   								break;
+   			case ST_FAULT:
+            default:	         return fault;
+   								break;
+   		}
+      } else {
+         if ( devhandle != 0 ) {
+            printEpos2Error();
+            closeEpos2();
+         }
+         return not_init;
+      }
+
+   }
+
+   void Epos2::closeEpos2()
+   {
+      setDisable();
+      if ( !VCS_CloseDevice(devhandle, &lastEpos2ErrorCode) ) printEpos2Error();
+      devhandle = 0;
+   }
+
+   //set parameters first (notation and dimension)
+   bool Epos2::setRPM(double rpm) {return false;}
+   double Epos2::getMaxRPM() { return 0.0; }
+
+   void Epos2::resetAndClearFaultOnAllDevices()
+   {
+      std::vector<int>::iterator it;
+
+      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
+         if ( !VCS_SetDisableState(devhandle, *it, &lastEpos2ErrorCode) ) printEpos2Error();
+      }
+
+      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
+         if ( !VCS_ResetDevice(devhandle, *it, &lastEpos2ErrorCode) ) printEpos2Error();
+      }
+
+      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
+         if ( !VCS_ClearFault(devhandle, *it, &lastEpos2ErrorCode) ) printEpos2Error();
+      }
+
+      for (it = epos_node_nr.begin(); it < epos_node_nr.end(); it++) {
+         if ( !VCS_SetEnableState(devhandle, *it, &lastEpos2ErrorCode) ) printEpos2Error();
+      }
+   }
+
+   void Epos2::printEpos2Error()
    {
       unsigned short maxStr=255; //max stringsize
    	char errorText[maxStr];   //errorstring
 
-      if ( VCS_GetErrorInfo(errorCode, errorText, maxStr) )
+      if ( VCS_GetErrorInfo(lastEpos2ErrorCode, errorText, maxStr) )
       {
-         ROS_ERROR("Epos2: %s", errorText);
+         ROS_ERROR("Epos2 (Node_nr %i): %s", epos_node_nr[0], errorText);
       } else {
-         ROS_FATAL("Unable to resolve an errorText for the Epos2-ErrorCode %#x", errorCode);
+         ROS_FATAL("Unable to resolve an errorText for the Epos2-ErrorCode %#x", lastEpos2ErrorCode);
       }
    }
 

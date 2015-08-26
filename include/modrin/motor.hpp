@@ -8,12 +8,10 @@ namespace modrin
    class Motor
 	{
    protected:
-      enum state {not_init, enable, disable, fault};
-
-   protected:
       Motor() {ROS_DEBUG("created an instance of the modrin motor interface.");}
 
    public:
+      enum state {not_init, enabled, disabled, fault};
 
       bool initialize(ros::NodeHandle roshandle, std::string name);
       virtual bool onInit(ros::NodeHandle roshandle, std::string name) {}
