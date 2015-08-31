@@ -41,7 +41,7 @@ namespace modrin
             temp.str("");
             temp << ros::names::clean(ros::this_node::getName()) << "/" << "left_epos2";
 
-            motor_node1->initialize(roshandle, temp.str().c_str() );
+            motor_node1->initialize(roshandle, "left_epos2");//temp.str().c_str() );
          } else {
             motor_node2.reset();
             motor_node2 = motor_loader.createInstance("modrin_motor_plugins::Epos2");
@@ -49,7 +49,7 @@ namespace modrin
             temp.str("");
             temp << ros::names::clean(ros::this_node::getName()) << "/" << "right_epos2";
 
-            motor_node2->initialize(roshandle, temp.str().c_str() );
+            motor_node2->initialize(roshandle, "right_epos2");//temp.str().c_str() );
          }
 
          ROS_INFO("motor loaded");

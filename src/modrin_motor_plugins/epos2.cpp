@@ -15,71 +15,84 @@ namespace modrin_motor_plugins
       if ( devhandle != 0 ) closeEpos2();
    }
 
-   bool Epos2::onInit(ros::NodeHandle roshandle, std::string name)
+   bool Epos2::onInit()
    {
-      this->name = name;
-      ros::Duration d(1.0);
-
-      if ( ros::param::has(name + "/node_nr") )
+      if ( ros::param::has(full_namespace + "/node_nr") )
       {
          int temp;
-         ros::param::get(name + "/node_nr", temp);
+         ros::param::get(full_namespace + "/node_nr", temp);
          epos_node_nr.push_back(temp);
       } else {
-         ROS_ERROR("couldn't read an Epos2 node_nr from the parameter-server at \"%s\"", (name + "/node_nr").c_str() );
+         ROS_ERROR("[%s] couldn't read an Epos2 node_nr from the parameter-server at \"%s\"", name.c_str(), (full_namespace + "/node_nr").c_str() );
          return false;
       }
 
-      eposCanClient = ros::param::has(name + "/can_connected_with");
-      std::string srv_name = name;
+      eposCanClient = ros::param::has(full_namespace + "/can_connected_with");
 
       if ( eposCanClient )
       {
          std::string can_connected_with;
-         ros::param::get(name + "/can_connected_with", can_connected_with);
-         size_t x = srv_name.find_last_of("/");
-         srv_name = srv_name.substr(0, x+1) + can_connected_with;
+         ros::param::get(full_namespace + "/can_connected_with", can_connected_with);
+         //size_t x = srv_name.find_last_of("/");
+         //srv_name = srv_name.substr(0, x+1) + can_connected_with;
+         srv_name = ros::this_node::getName() + "/" + can_connected_with;
          epos2_can = roshandle.serviceClient<modrin::epos2_can>( srv_name );
-      }
-
-      initEpos2(roshandle, srv_name);
-
-      if (devhandle == 0)
-      {
-         ROS_ERROR("couldn't receive an epos2 devhandle");
-         return false;
       } else {
-         //set parameter
+         //establishCommmunication();
 
-         ROS_INFO("Epos2 with node_nr %i successfully started in ns \"%s\"", epos_node_nr[0], name.c_str() );
-         return true;
+         srv_name = full_namespace;
+         epos2_can_srv = roshandle.advertiseService(srv_name.c_str(), &Epos2::canSrv, this);
+         ROS_DEBUG("[%s] create srv: %s", name.c_str(), srv_name.c_str());
       }
 
+      controllTimer = roshandle.createTimer(ros::Rate(0.2), &Epos2::periopdicControllCallback, this);
+
+      return initEpos2(1000);
    }
 
    void Epos2::periopdicControllCallback(const ros::TimerEvent& event) {
-      if ( getState() == not_init ) int i=0;//init
+      switch ( getState() ) {
+         case not_init: initEpos2();
+                        break;
+         case fault:   if (!eposCanClient) resetAndClearFaultOnAllDevices();
+                        break;
+      }
    }
 
-   bool Epos2::initEpos2(ros::NodeHandle roshandle, std::string srv_name)
+   bool Epos2::initEpos2(int timeout)
    {
       if (eposCanClient) {
          modrin::epos2_can temp;
          temp.request.node_nr = epos_node_nr[0];
-         ros::service::waitForService(srv_name, 5000);   //initTimeout
+         ros::service::waitForService(srv_name, timeout);
          ROS_DEBUG("call srv: %s", srv_name.c_str() );
          if (epos2_can.call(temp))
          {
             devhandle = (void*) temp.response.devhandle;
-            ROS_INFO("receive epos2 devhandle %#lx", (unsigned long int) devhandle);
+            ROS_INFO("[%s] receive an epos2 device-handle: %#lx", name.c_str(), (unsigned long int) devhandle);
          } else {
             devhandle = 0;
-      }
+         }
       } else {
          establishCommmunication();
+      }
 
-         epos2_can_srv = roshandle.advertiseService(name.c_str(), &Epos2::canSrv, this);
-         ROS_DEBUG("create srv: %s", name.c_str());
+      if (devhandle == 0)
+      {
+         if (eposCanClient) {
+            ROS_WARN("[%s] couldn't receive an epos2 device-handle", name.c_str());
+         } else {
+            ROS_ERROR("[%s] couldn't receive an epos2 device-handle", name.c_str());
+         }
+         return false;
+      } else {
+         //set parameter
+         setDisable();
+         setParameter();
+         setEnable();
+
+         ROS_INFO("[%s] Epos2 with node_nr %i successfully started in ns \"%s\"", name.c_str(), epos_node_nr[0], full_namespace.c_str() );
+         return true;
       }
    }
 
@@ -89,19 +102,19 @@ namespace modrin_motor_plugins
       char *protocol, *port_type;
       int baudrate, timeout;
 
-      ros::param::get(name + "/port", port);
-      ros::param::param<int>(name + "/timeout", timeout, 750);
+      ros::param::get(full_namespace + "/port", port);
+      ros::param::param<int>(full_namespace + "/timeout", timeout, 750);
 
       if ( port.substr(0,3).compare("USB") == 0 ) {
-         ros::param::param<int>(name + "/baudrate", baudrate, 1000000);
+         ros::param::param<int>(full_namespace + "/baudrate", baudrate, 1000000);
          protocol = (char*)"MAXON SERIAL V2";
          port_type = (char*)"USB";
       } else if ( port.substr(0,8).compare("/dev/tty") == 0 ) {
-         ros::param::param<int>(name + "/baudrate", baudrate, 115200);
+         ros::param::param<int>(full_namespace + "/baudrate", baudrate, 115200);
          protocol = (char*)"MAXON_RS232";
          port_type = (char*)"RS232";
       } else {
-         ROS_ERROR("\"%s\" isn't a valid portname for the Epos2. Allowed are USB* or /dev/tty*", port.c_str());
+         ROS_ERROR("[%s] \"%s\" isn't a valid portname for the Epos2. Allowed are USB* or /dev/tty*", name.c_str(), port.c_str());
          return false;
       }
 
@@ -113,7 +126,7 @@ namespace modrin_motor_plugins
          return false;
       } else {
          if ( VCS_SetProtocolStackSettings(devhandle, baudrate, timeout, &lastEpos2ErrorCode) ) {
-            ROS_INFO("open EPOS2-Device on port %s (baudrate: %i; timeout: %i). devhandle %#lx", port.c_str(), baudrate, timeout, (unsigned long int) devhandle);
+            ROS_INFO("[%s] open EPOS2-Device on port %s (baudrate: %i; timeout: %i). device-handle: %#lx", name.c_str(), port.c_str(), baudrate, timeout, (unsigned long int) devhandle);
             return true;
          } else {
             printEpos2Error();
@@ -124,7 +137,7 @@ namespace modrin_motor_plugins
 
    bool Epos2::canSrv(modrin::epos2_can::Request &req, modrin::epos2_can::Response &res)
    {
-      ROS_INFO("Epos2 with node_nr %i call the canSrv of the Epos2 with node_nr %i", req.node_nr, epos_node_nr[0]);
+      ROS_INFO("[%s] Epos2 with node_nr %i call the canSrv", name.c_str(), req.node_nr);
 
       res.devhandle = (unsigned long int) devhandle;
 
@@ -241,9 +254,70 @@ namespace modrin_motor_plugins
 
       if ( VCS_GetErrorInfo(lastEpos2ErrorCode, errorText, maxStr) )
       {
-         ROS_ERROR("Epos2 (Node_nr %i): %s", epos_node_nr[0], errorText);
+         ROS_ERROR("[%s] %s (errorCode: %#x)", name.c_str(), errorText, lastEpos2ErrorCode);
       } else {
-         ROS_FATAL("Unable to resolve an errorText for the Epos2-ErrorCode %#x", lastEpos2ErrorCode);
+         ROS_FATAL("[%s] Unable to resolve an errorText for the Epos2-ErrorCode %#x", name.c_str(), lastEpos2ErrorCode);
+      }
+   }
+
+   bool Epos2::setParameter()
+   {
+      if (getState() != disabled) return false;
+
+      if ( !setMotorParameter() ) return false;
+
+      return true;
+   }
+
+   bool Epos2::setMotorParameter()
+   {
+      if ( ros::param::has(full_namespace + "/motor_type") ) {
+         int motor_type;
+         ros::param::get(full_namespace + "/motor_type", motor_type);
+
+         if ( !VCS_SetMotorType(devhandle, epos_node_nr[0], motor_type, &lastEpos2ErrorCode) ) {
+            printEpos2Error();
+            return false;
+         } else {
+            int nominal_current, max_current, thermal_time_constant, max_rpm;
+
+            ros::param::param<int>(full_namespace + "/motor_nominal_current", nominal_current, 500);
+            ros::param::param<int>(full_namespace + "/motor_max_output_current", max_current, nominal_current * 2);
+            ros::param::param<int>(full_namespace + "/motor_max_rpm", max_rpm, 1000);
+            ros::param::param<int>(full_namespace + "/motor_thermal_time_constant", thermal_time_constant, 100);
+
+            unsigned int bytesWritten=0;
+            if ( !VCS_SetObject(devhandle, epos_node_nr[0], 0x6410, 0x04, &max_rpm, 4, &bytesWritten, &lastEpos2ErrorCode) ) printEpos2Error();
+
+            if ( motor_type == MT_DC_MOTOR ) {
+               if ( !VCS_SetDcMotorParameter(devhandle, epos_node_nr[0], nominal_current, max_current, (short unsigned) (thermal_time_constant / 100.0), &lastEpos2ErrorCode) ) {
+                  printEpos2Error();
+                  return false;
+               } else {
+                  ROS_INFO("[%s] set motor parameter: brushed DC motor, %.3fA nominal current, %.3fA peak current, max %i rpm, thermal time constant winding = %ims", name.c_str(), nominal_current/1000.0, max_current/1000.0, max_rpm, thermal_time_constant);
+                  return true;
+               }
+            } else {
+               if ( ros::param::has(full_namespace + "/motor_pole_pair_number") ) {
+                  int number_of_pole_pairs;
+                  ros::param::get(full_namespace + "/motor_pole_pair_number", number_of_pole_pairs);
+
+                  if ( !VCS_SetEcMotorParameter(devhandle, epos_node_nr[0], nominal_current, max_current, thermal_time_constant / 100, number_of_pole_pairs, &lastEpos2ErrorCode) ) {
+                     printEpos2Error();
+                     return false;
+                  } else {
+                     ROS_INFO("[%s] set motor parameter: EC motor %s commutated, %.3fA nominal current, %.3fA peak current, max %i rpm, %i pole pairs, thermal time constant winding = %ims", name.c_str(), (motor_type == MT_EC_SINUS_COMMUTATED_MOTOR) ? "sinus" : "block", nominal_current/1000.0, max_current/1000.0, max_rpm, number_of_pole_pairs, thermal_time_constant);
+                     return true;
+                  }
+               } else {
+                  ROS_ERROR("[%s] motor_pole_pair_number wasn't set in namespace \"%s\"", name.c_str(), full_namespace.c_str());
+                  return false;
+               }
+            }
+         }
+      } else {
+         ROS_INFO("[%s] motor_type wasn't set in namespace \"%s\". No motor parameters changed by modrin.", name.c_str(), full_namespace.c_str());
+         return true;
       }
    }
 

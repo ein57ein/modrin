@@ -4,6 +4,9 @@ namespace modrin
 {
    bool Motor::initialize(ros::NodeHandle roshandle, std::string name)
    {
-      return onInit(roshandle, name);
+      this->name = name;
+      full_namespace = ros::this_node::getName() + "/" + name;
+
+      return onInit();
    }
 }

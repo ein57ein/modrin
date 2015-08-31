@@ -1,27 +1,38 @@
-#
+#related to the hardware of the robot
 movement_config: 'tank_steering'
+wheels_tf: ['left_epos2', 'right_epos2']
 
-#related to the movement_config
-motor_left: 'left_epos2'
-motor_right: 'right_epos2'
-
-#related to the motors
+#related to the config of the wheels
 left_epos2:
-   #must be set for every motor
+   #indicates if a motor or a encoder is connected to this wheel
    motor_plugin: 'modrin_motor_plugins::Epos2'
-   #information requested by the motor driver itself
+   encoder_plugin: 'modrin_encoder_plugins::Epos2'
+   #information requested by the plugins themselves
    node_nr: 2
-   reverse: false
    port: 'USB0'
-   #[Bits/s]
-   baudrate: 1000000
-   #[ms]
-   timeout: 850
+   baudrate: 1000000   #[Bits/s]
+   timeout: 850   #[ms]
+   motor_reverse: false
+
+   motor_type: 1  #1: brushed DC motor; 10: EC motor sinus commutated; 11: EC motor block commutated
+   motor_nominal_current: 5770   #[mA]
+   motor_max_output_current: 12000  #[mA]
+   motor_max_rpm: 9000  #[rev/min]
+   motor_thermal_time_constant: 1000  #[ms]
+   #motor_pole_pair_number: 2 #[1] only for EC motors
 
 right_epos2:
-   #must be set for every motor
+   #indicates if a motor or a encoder is connected to this wheel
    motor_plugin: 'modrin_motor_plugins::Epos2'
-   #information requested by the motor driver itself
+   encoder_plugin: 'modrin_encoder_plugins::Epos2'
+   #information requested by the plugins themselves
    node_nr: 1
-   reverse: true
    can_connected_with: 'left_epos2'
+   motor_reverse: true
+
+   motor_type: 1  #1: brushed DC motor; 10: EC motor sinus commutated; 11: EC motor block commutated
+   motor_nominal_current: 5770   #[mA]
+   motor_max_output_current: 12000  #[mA]
+   motor_max_rpm: 9000  #[rev/min]
+   motor_thermal_time_constant: 1000  #[ms]
+   #motor_pole_pair_number: 2 #[1] only for EC motors
