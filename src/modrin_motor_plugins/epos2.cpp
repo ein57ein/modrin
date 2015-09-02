@@ -264,60 +264,86 @@ namespace modrin_motor_plugins
    {
       if (getState() != disabled) return false;
 
-      if ( !setMotorParameter() ) return false;
+      if ( !checkMotorParameter() ) return false;
+
+      VCS_Store(devhandle, epos_node_nr[0], &lastEpos2ErrorCode);
 
       return true;
    }
 
-   bool Epos2::setMotorParameter()
+   bool Epos2::checkMotorParameter()
    {
-      if ( ros::param::has(full_namespace + "/motor_type") ) {
-         int motor_type;
-         ros::param::get(full_namespace + "/motor_type", motor_type);
+      short unsigned motor_type;
 
+      if ( !VCS_GetMotorType(devhandle, epos_node_nr[0], &motor_type, &lastEpos2ErrorCode) ) {
+         printEpos2Error();
+      }
+      //ros::param::has(full_namespace + "/motor_type")
+      if ( ros::param::get(full_namespace + "/motor_type", (int&) motor_type) ) {
          if ( !VCS_SetMotorType(devhandle, epos_node_nr[0], motor_type, &lastEpos2ErrorCode) ) {
             printEpos2Error();
-            return false;
-         } else {
-            int nominal_current, max_current, thermal_time_constant, max_rpm;
+         }
+      }
 
-            ros::param::param<int>(full_namespace + "/motor_nominal_current", nominal_current, 500);
-            ros::param::param<int>(full_namespace + "/motor_max_output_current", max_current, nominal_current * 2);
-            ros::param::param<int>(full_namespace + "/motor_max_rpm", max_rpm, 1000);
-            ros::param::param<int>(full_namespace + "/motor_thermal_time_constant", thermal_time_constant, 100);
+      short unsigned nominal_current = 0, max_current = 0, thermal_time_constant = 0;
+      unsigned char number_of_pole_pairs = 1;
+      std::string motor_str;
+      if ( motor_type == MT_DC_MOTOR ) {
+         motor_str = "brushed DC motor";
+         if ( !VCS_GetDcMotorParameter(devhandle, epos_node_nr[0], &nominal_current, &max_current, &thermal_time_constant, &lastEpos2ErrorCode) ) {
+            printEpos2Error();
+         }
+      } else {
+         motor_str = (motor_type == MT_EC_SINUS_COMMUTATED_MOTOR) ? "EC motor sinus commutated" : "EC motor block commutated";
+         if ( !VCS_GetEcMotorParameter(devhandle, epos_node_nr[0], &nominal_current, &max_current, &thermal_time_constant, &number_of_pole_pairs, &lastEpos2ErrorCode) ) {
+            printEpos2Error();
+         }
+      }
+      thermal_time_constant = 100 * thermal_time_constant;
 
-            unsigned int bytesWritten=0;
-            if ( !VCS_SetObject(devhandle, epos_node_nr[0], 0x6410, 0x04, &max_rpm, 4, &bytesWritten, &lastEpos2ErrorCode) ) printEpos2Error();
+      bool something_changed = false, successfully_set = true;
+      if ( ros::param::get(full_namespace + "/motor_nominal_current", (int&) nominal_current) ) { something_changed = true; }
+      if ( ros::param::get(full_namespace + "/motor_max_output_current", (int&) max_current) ) { something_changed = true; }
+      if ( ros::param::get(full_namespace + "/motor_thermal_time_constant", (int&) thermal_time_constant) ) { something_changed = true; }
+      std::ostringstream pole_pair_str;
+      pole_pair_str.str("");
 
-            if ( motor_type == MT_DC_MOTOR ) {
-               if ( !VCS_SetDcMotorParameter(devhandle, epos_node_nr[0], nominal_current, max_current, (short unsigned) (thermal_time_constant / 100.0), &lastEpos2ErrorCode) ) {
-                  printEpos2Error();
-                  return false;
-               } else {
-                  ROS_INFO("[%s] set motor parameter: brushed DC motor, %.3fA nominal current, %.3fA peak current, max %i rpm, thermal time constant winding = %ims", name.c_str(), nominal_current/1000.0, max_current/1000.0, max_rpm, thermal_time_constant);
-                  return true;
-               }
-            } else {
-               if ( ros::param::has(full_namespace + "/motor_pole_pair_number") ) {
-                  int number_of_pole_pairs;
-                  ros::param::get(full_namespace + "/motor_pole_pair_number", number_of_pole_pairs);
-
-                  if ( !VCS_SetEcMotorParameter(devhandle, epos_node_nr[0], nominal_current, max_current, thermal_time_constant / 100, number_of_pole_pairs, &lastEpos2ErrorCode) ) {
-                     printEpos2Error();
-                     return false;
-                  } else {
-                     ROS_INFO("[%s] set motor parameter: EC motor %s commutated, %.3fA nominal current, %.3fA peak current, max %i rpm, %i pole pairs, thermal time constant winding = %ims", name.c_str(), (motor_type == MT_EC_SINUS_COMMUTATED_MOTOR) ? "sinus" : "block", nominal_current/1000.0, max_current/1000.0, max_rpm, number_of_pole_pairs, thermal_time_constant);
-                     return true;
-                  }
-               } else {
-                  ROS_ERROR("[%s] motor_pole_pair_number wasn't set in namespace \"%s\"", name.c_str(), full_namespace.c_str());
-                  return false;
-               }
+      if ( motor_type == MT_DC_MOTOR ) {
+         if (something_changed) {
+            if ( !VCS_SetDcMotorParameter(devhandle, epos_node_nr[0], nominal_current, max_current, (short unsigned) (thermal_time_constant / 100.0), &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               successfully_set = false;
             }
          }
       } else {
-         ROS_INFO("[%s] motor_type wasn't set in namespace \"%s\". No motor parameters changed by modrin.", name.c_str(), full_namespace.c_str());
+         if ( ros::param::get(full_namespace + "/motor_pole_pair_number", (int&) number_of_pole_pairs) ) { something_changed = true; }
+         pole_pair_str << number_of_pole_pairs << " pole pairs, ";
+         if (something_changed) {
+            if ( !VCS_SetEcMotorParameter(devhandle, epos_node_nr[0], nominal_current, max_current, (short unsigned) (thermal_time_constant / 100.0), number_of_pole_pairs, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               successfully_set = false;
+            }
+         }
+      }
+
+      unsigned int bytes = 0;
+      int max_rpm;
+      if ( !VCS_GetObject(devhandle, epos_node_nr[0], 0x6410, 0x04, &max_rpm, 4, &bytes, &lastEpos2ErrorCode) ) {
+         printEpos2Error();
+      }
+
+      if ( ros::param::get(full_namespace + "/motor_max_rpm", max_rpm) ) {
+         if ( !VCS_SetObject(devhandle, epos_node_nr[0], 0x6410, 0x04, &max_rpm, 4, &bytes, &lastEpos2ErrorCode) ) {
+            printEpos2Error();
+         }
+      }
+
+      if (successfully_set) {
+         ROS_INFO("[%s] current motor parameter: %s, %.3fA nominal current, %.3fA peak current, max %i rpm, %sthermal time constant winding = %.1fs", name.c_str(), motor_str.c_str(), nominal_current/1000.0, max_current/1000.0, max_rpm, pole_pair_str.str().c_str(), thermal_time_constant/1000.0);
+
          return true;
+      } else {
+         return false;
       }
    }
 

@@ -48,7 +48,7 @@ namespace modrin_motor_plugins
       void printEpos2Error();
 
       bool setParameter();
-      bool setMotorParameter();
+      bool checkMotorParameter();
    };
 };
 #endif //MODRIN_EPOS2_PLUGIN_H_

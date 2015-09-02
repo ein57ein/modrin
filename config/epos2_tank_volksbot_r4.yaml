@@ -11,7 +11,7 @@ left_epos2:
    node_nr: 2
    port: 'USB0'
    baudrate: 1000000   #[Bits/s]
-   timeout: 850   #[ms]
+   timeout: 650   #[ms]
    motor_reverse: false
 
    motor_type: 1  #1: brushed DC motor; 10: EC motor sinus commutated; 11: EC motor block commutated
