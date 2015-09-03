@@ -87,9 +87,7 @@ namespace modrin_motor_plugins
          return false;
       } else {
          //set parameter
-         setDisable();
-         setParameter();
-         setEnable();
+         if (eposCanClient) {setParameter();}
 
          ROS_INFO("[%s] Epos2 with node_nr %i successfully started in ns \"%s\"", name.c_str(), epos_node_nr[0], full_namespace.c_str() );
          return true;
@@ -147,6 +145,7 @@ namespace modrin_motor_plugins
       } else {
          epos_node_nr.push_back(req.node_nr);
          resetAndClearFaultOnAllDevices();
+         setParameter();
          return true;
       }
    }
@@ -262,11 +261,19 @@ namespace modrin_motor_plugins
 
    bool Epos2::setParameter()
    {
-      if (getState() != disabled) return false;
+      if ( !setDisable() ) return false;
+
+      if ( !setDimensionAndNotation() ) return false;
+
+      if ( !checkSpin() ) return false;
 
       if ( !checkMotorParameter() ) return false;
 
-      VCS_Store(devhandle, epos_node_nr[0], &lastEpos2ErrorCode);
+      if ( !VCS_Store(devhandle, epos_node_nr[0], &lastEpos2ErrorCode) ) {
+         printEpos2Error();
+      }
+
+      if ( !setEnable() ) return false;
 
       return true;
    }
@@ -345,6 +352,106 @@ namespace modrin_motor_plugins
       } else {
          return false;
       }
+   }
+
+   bool Epos2::setDimensionAndNotation() {
+      object_data data_temp[]={
+      //{VN_STANDARD, int8, 0x6089, 0}, {0xac, uint8, 0x608a, 0}, //Position [steps]
+      {VN_MILLI, int8, 0x608b, 0}, //{VD_RPM, uint8, 0x608c, 0}, //Velocity [1e-3 rev/min]
+      //{VN_STANDARD, int8, 0x608d, 0}, {VD_RPM, uint8, 0x608e, 0} //Acceleration [rev/min²]
+      };
+
+      std::vector<object_data> data;
+
+      for (int i=0; i < sizeof(data_temp) / sizeof(object_data); i ++) {
+         data.push_back(data_temp[i]);
+      }
+
+      return setObject(&data);
+   }
+
+   bool Epos2::checkSpin() {
+      object_data data_temp = {0, uint16, 0x2008, 0};
+      std::vector<object_data> data;
+      data.push_back(data_temp);
+
+      if ( !getObject(&data) ) { return false; }
+
+      bool temp;  //true = 1; false = 0
+      if ( ros::param::get(full_namespace + "/motor_reverse", temp) ) {
+         if ( temp xor (data[0].value >> 8) & 1 ) {
+            data[0].value = (data[0].value & 0xfeff) + temp * 0x100;
+
+            setObject(&data);
+         }
+      }
+
+      ROS_INFO("[%s] Miscellaneous Configuration Word: %#x", name.c_str(), data[0].value );
+      return true;
+   }
+
+   bool Epos2::getObject(std::vector<object_data> *data) {
+      bool no_error = true;
+      uint32_t bytes;
+
+      for (std::vector<object_data>::iterator it=data->begin(); it < data->end(); it++) {
+         if ( it->type == int8 ) {
+            int8_t value;
+            if ( !VCS_GetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 1, &bytes, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               no_error = false;
+            } else {
+               it->value = value;
+            }
+         } else if ( it->type == uint8 ) {
+            uint8_t value;
+            if ( !VCS_GetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 1, &bytes, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               no_error = false;
+            } else {
+               it->value = value;
+            }
+         } else if ( it->type == uint16 ) {
+            uint16_t value;
+            if ( !VCS_GetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 2, &bytes, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               no_error = false;
+            } else {
+               it->value = value;
+            }
+         }
+      }
+
+      return no_error;
+   }
+
+   bool Epos2::setObject(std::vector<object_data> *data) {
+      bool no_error = true;
+      uint32_t bytes;
+
+      for (std::vector<object_data>::iterator it=data->begin(); it < data->end(); it++) {
+         if ( it->type == int8 ) {
+            int8_t value = it->value;
+            if ( !VCS_SetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 1, &bytes, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               no_error = false;
+            }
+         } else if ( it->type == uint8 ) {
+            uint8_t value = it->value;
+            if ( !VCS_SetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 1, &bytes, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               no_error = false;
+            }
+         } else if ( it->type == uint16 ) {
+            uint16_t value = it->value;
+            if ( !VCS_SetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 2, &bytes, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               no_error = false;
+            }
+         }
+      }
+
+      return no_error;
    }
 
 }

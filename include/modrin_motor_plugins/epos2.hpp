@@ -20,6 +20,15 @@ namespace modrin_motor_plugins
       std::string srv_name;
       ros::Timer controllTimer;
 
+      enum object_type { int8, uint8, uint16 };
+      struct object_data {
+         int value;
+         object_type type;
+         uint16_t index;
+         uint8_t sub_index;
+         //uint32_t bytes;
+      };
+
    public:
       Epos2();
 
@@ -49,6 +58,10 @@ namespace modrin_motor_plugins
 
       bool setParameter();
       bool checkMotorParameter();
+      bool setDimensionAndNotation();
+      bool checkSpin();
+      bool getObject(std::vector<object_data> *data);
+      bool setObject(std::vector<object_data> *data); //object_data data[], int size);
    };
 };
 #endif //MODRIN_EPOS2_PLUGIN_H_
