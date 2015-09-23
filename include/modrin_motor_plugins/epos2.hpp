@@ -20,7 +20,7 @@ namespace modrin_motor_plugins
       std::string srv_name;
       ros::Timer controllTimer;
 
-      enum object_type { int8, uint8, uint16 };
+      enum object_type { int8, uint8, uint16, uint32 };
       struct object_data {
          int value;
          object_type type;
@@ -60,6 +60,7 @@ namespace modrin_motor_plugins
       bool checkMotorParameter();
       bool setDimensionAndNotation();
       bool checkSpin();
+      bool checkGearParameter();
       bool getObject(std::vector<object_data> *data);
       bool setObject(std::vector<object_data> *data); //object_data data[], int size);
    };

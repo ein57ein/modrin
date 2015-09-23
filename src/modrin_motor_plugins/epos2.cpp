@@ -358,7 +358,7 @@ namespace modrin_motor_plugins
       object_data data_temp[]={
       //{VN_STANDARD, int8, 0x6089, 0}, {0xac, uint8, 0x608a, 0}, //Position [steps]
       {VN_MILLI, int8, 0x608b, 0}, //{VD_RPM, uint8, 0x608c, 0}, //Velocity [1e-3 rev/min]
-      //{VN_STANDARD, int8, 0x608d, 0}, {VD_RPM, uint8, 0x608e, 0} //Acceleration [rev/min²]
+      //{VN_STANDARD, int8, 0x608d, 0}, {VD_RPM, uint8, 0x608e, 0} //Acceleration [rev/(min * s)]
       };
 
       std::vector<object_data> data;
@@ -390,6 +390,22 @@ namespace modrin_motor_plugins
       return true;
    }
 
+   bool Epos2::checkGearParameter() {
+      object_data data_temp[]={
+      {1, uint32, 0x2230, 0x01}, //Gear Ratio Numerator
+      {1, uint16, 0x2230, 0x02}, //Gear Ratio Denominator
+      {1000, uint32, 0x2230, 0x03} //Gear Maximal Speed
+      };
+
+      std::vector<object_data> data;
+
+      for (int i=0; i < sizeof(data_temp) / sizeof(object_data); i ++) {
+         data.push_back(data_temp[i]);
+      }
+
+      if ( !getObject(&data) ) { return false; }
+   }
+
    bool Epos2::getObject(std::vector<object_data> *data) {
       bool no_error = true;
       uint32_t bytes;
@@ -414,6 +430,14 @@ namespace modrin_motor_plugins
          } else if ( it->type == uint16 ) {
             uint16_t value;
             if ( !VCS_GetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 2, &bytes, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               no_error = false;
+            } else {
+               it->value = value;
+            }
+         } else if ( it->type == uint32 ) {
+            uint32_t value;
+            if ( !VCS_GetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 4, &bytes, &lastEpos2ErrorCode) ) {
                printEpos2Error();
                no_error = false;
             } else {
@@ -445,6 +469,12 @@ namespace modrin_motor_plugins
          } else if ( it->type == uint16 ) {
             uint16_t value = it->value;
             if ( !VCS_SetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 2, &bytes, &lastEpos2ErrorCode) ) {
+               printEpos2Error();
+               no_error = false;
+            }
+         } else if ( it->type == uint32 ) {
+            uint32_t value = it->value;
+            if ( !VCS_SetObject(devhandle, epos_node_nr[0], it->index, it->sub_index, &value, 4, &bytes, &lastEpos2ErrorCode) ) {
                printEpos2Error();
                no_error = false;
             }

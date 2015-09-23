@@ -137,6 +137,10 @@ target_link_libraries(modrin ${catkin_LIBRARIES} _motor _modrin_core)
 target_link_libraries(modrin_sample_moving ${catkin_LIBRARIES})
 target_link_libraries(modrin_safety_node ${catkin_LIBRARIES})
 
+
+add_executable(fake_joints src/fake_joint_states.cpp)
+target_link_libraries(fake_joints ${catkin_LIBRARIES})
+
 #############
 ## Install ##
 #############

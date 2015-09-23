@@ -1,0 +1,68 @@
+# Time in seconds
+# Current in amps
+# position, velocity, and acceleration in device units
+left_epos2:
+  actuator_name: 'left_epos2_actuator'
+  serial_number: '662080001247'
+  operation_mode: 'profile_velocity'
+  clear_faults: true
+
+  motor:
+    type: 1
+    dc_motor:
+      nominal_current: 5.770
+      max_output_current: 12.000
+      thermal_time_constant: 1.0
+
+  sensor:
+    type: 1
+    incremental_encoder:
+      resolution: 500
+      inverted_polarity: false
+
+  safety:
+    max_following_error: 20000
+    max_profile_velocity: 7000
+    max_acceleration: 15000
+
+  position_profile:
+    velocity: 7000
+    acceleration: 8000
+    deceleration: 9000
+
+  velocity_profile:
+    acceleration: 8000
+    deceleration: 9000
+
+right_epos2:
+  actuator_name: 'right_epos2_actuator'
+  serial_number: '662080001290'
+  operation_mode: 'profile_velocity'
+  clear_faults: true
+
+  motor:
+    type: 1
+    dc_motor:
+      nominal_current: 5.770
+      max_output_current: 12.000
+      thermal_time_constant: 1.0
+
+  sensor:
+    type: 1
+    incremental_encoder:
+      resolution: 500
+      inverted_polarity: false
+
+  safety:
+    max_following_error: 20000
+    max_profile_velocity: 95
+    max_acceleration: 15000
+
+  position_profile:
+    velocity: 95
+    acceleration: 8000
+    deceleration: 9000
+
+  velocity_profile:
+    acceleration: 8000
+    deceleration: 9000

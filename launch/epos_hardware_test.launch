@@ -1,0 +1,17 @@
+<launch>
+  <param name="robot_description" textfile="$(find modrin)/launch/volksbot_test.urdf" />
+
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen"/>
+
+  <node pkg="tf" type="static_transform_publisher" name="robot_in_world_temp" args="0.2 2.0 0 0 0 0 world base_footprint 200" />
+  <!--node pkg="modrin" type="fake_joints" name="fake_joints" output="screen"/-->
+
+  <node name="epos_hardware" pkg="epos_hardware" type="epos_hardware_node" args="left_epos2 right_epos2" output="screen">
+    <rosparam command="load" file="$(find modrin)/config/epos_hardware_test.yaml" />
+    <remap from="joint_states" to="odom_raw" />
+  </node>
+
+  <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"	output="screen" args="odom_raw  velocity_left velocity_right"/>
+   <rosparam command="load" file="$(find modrin)/config/controller.yaml" />
+
+</launch>
